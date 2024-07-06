@@ -43,7 +43,5 @@ object MonitoringApp extends App with SparkSessionWrapper {
     .format("console")
     .start()
 
-  // Procesar datos de CO2 y humedad del suelo de manera similar...
-
   spark.streams.awaitAnyTermination()
 }
