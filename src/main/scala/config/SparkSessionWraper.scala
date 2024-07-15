@@ -15,6 +15,8 @@ trait SparkSessionWrapper {
       .config("spark.ui.showConsoleProgress", "false")
       .config("spark.sql.streaming.ui.enabled", "false")
       .config("spark.log.level", "OFF")
+      .config("spark.sql.streaming.statefulOperator.checkCorrectness.enabled", "false")
+      .config("spark.sql.shuffle.partitions", "2")
       .getOrCreate()
   }
 }

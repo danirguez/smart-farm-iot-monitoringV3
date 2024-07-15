@@ -1,6 +1,7 @@
 package models
 
 import java.sql.Timestamp
+import org.apache.spark.sql.types._
 
 sealed trait SensorReading
 
@@ -22,3 +23,12 @@ case class SoilMoistureReading(
                                 soilMoisture: Double,
                                 timestamp: Timestamp
                               ) extends SensorReading
+
+object SensorReading {
+  val schema: StructType = StructType(Seq(
+    StructField("sensorId", StringType),
+    StructField("temperature", DoubleType),
+    StructField("humidity", DoubleType),
+    StructField("timestamp", TimestampType)
+  ))
+}

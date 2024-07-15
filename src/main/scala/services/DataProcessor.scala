@@ -34,4 +34,67 @@ class DataProcessor(implicit spark: SparkSession) extends Serializable {
       .groupBy(window($"timestamp", windowDuration), $"zoneId")
       .agg(aggExprs.head, aggExprs.tail: _*)
   }
+
+  // 1) Uso de Watermark y Window:
+  def calculateAverageTemperature(df: DataFrame): DataFrame = {
+    df.withWatermark("event_time", "5 minutes")
+      .groupBy(
+        window($"event_time", "10 minutes"),
+        $"sensorId"
+      )
+      .agg(
+        avg($"temperature").as("avg_temperature")
+      )
+      .select(
+        $"window.start".as("window_start"),
+        $"window.end".as("window_end"),
+        $"sensorId",
+        $"avg_temperature"
+      )
+  }
+
+  // 2) Uso de CUBE, GROUPING SET o ROLLUP:
+  def calculateTemperatureAggregations(df: DataFrame): DataFrame = {
+    // Primero, aplicamos el watermark y calculamos promedios por hora
+    val hourlyAverages = df
+      .withWatermark("event_time", "10 minutes")
+      .groupBy(
+        window($"event_time", "1 hour"),
+        $"sensorId"
+      )
+      .agg(avg($"temperature").as("avg_temperature"))
+      .select(
+        $"window.start".cast("string").as("hour"),
+        $"sensorId",
+        $"avg_temperature"
+      )
+
+    // Luego, aplicamos CUBE a los resultados agregados
+    hourlyAverages
+      .groupBy($"hour", $"sensorId")
+      .agg(
+        avg($"avg_temperature").as("avg_temperature"),
+        count("*").as("count")
+      )
+      .rollup($"hour", $"sensorId")
+      .agg(
+        avg($"avg_temperature").as("avg_temperature"),
+        sum($"count").as("count")
+      )
+      .orderBy($"hour", $"sensorId")
+  }
+
+  // 3) Uso de BROADCAST JOIN:
+  def enrichWithZones(sensorData: DataFrame, zonesData: DataFrame): DataFrame = {
+    sensorData.join(
+      broadcast(zonesData),
+      sensorData("sensorId") === zonesData("sensor_id"),
+      "left"
+    ).select(
+      sensorData("*"),
+      zonesData("zona_nombre").as("zoneName"),
+      zonesData("latitud"),
+      zonesData("longitud")
+    )
+  }
 }

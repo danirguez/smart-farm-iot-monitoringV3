@@ -1,46 +1,60 @@
 import config.{AppConfig, SparkSessionWrapper}
+import org.apache.spark.sql.{DataFrame, SparkSession}
+import services.{DataProcessor, KafkaService, ZonesManager}
 import org.apache.spark.sql.streaming.Trigger
-import services.{DataProcessor, KafkaService}
-import utils.DataValidation
-import org.apache.log4j.{Level, Logger}
 
 object MonitoringApp extends App with SparkSessionWrapper {
-  import spark.implicits._
+  implicit val sparkSession: SparkSession = spark
+  import sparkSession.implicits._
 
-  // Configurar logging
-  Logger.getRootLogger.setLevel(Level.OFF)
-  Logger.getLogger("MonitoringApp").setLevel(Level.INFO)
+  val kafkaService = new KafkaService()
+  val dataProcessor = new DataProcessor()
+  val zonesManager = new ZonesManager()
+  val errorCounter = spark.sparkContext.longAccumulator("ErrorCounter")
 
-  // Inicializar servicios
-  val kafkaService = new KafkaService()(spark)
+  // Cargar los datos de las zonas desde el JSON
+  val zonesData = zonesManager.loadZones(AppConfig.zonesJsonPath)
 
-  // Crear todos los tópicos necesarios
-  kafkaService.createTopicIfNotExists(AppConfig.Kafka.temperatureHumidityTopic)
-  kafkaService.createTopicIfNotExists(AppConfig.Kafka.co2Topic)
-  kafkaService.createTopicIfNotExists(AppConfig.Kafka.soilMoistureTopic)
+  val sensorDataStream = kafkaService.readStream(AppConfig.Kafka.temperatureHumidityTopic)
 
-  // Procesar datos de temperatura y humedad
-  val tempHumStream = kafkaService.readStream(AppConfig.Kafka.temperatureHumidityTopic)
-    .as[(String, java.sql.Timestamp)]
-    .map { case (value, timestamp) =>
-      DataValidation.validateTemperatureHumidity(value, timestamp)
-    }
+  // Enriquecer los datos del sensor con la información de las zonas usando broadcast join
+  val enrichedSensorData = dataProcessor.enrichWithZones(sensorDataStream, zonesData)
 
-  val dataProcessor = new DataProcessor()(spark)
-  val tempHumDf = dataProcessor.processTemperatureHumidity(tempHumStream)
+  // Calcular promedios de temperatura por sensor cada 10 minutos
+  val averageTemperatures = dataProcessor.calculateAverageTemperature(enrichedSensorData)
 
-  // Escribir datos en bruto
-  tempHumDf.writeStream
-    .format("delta")
-    .outputMode("append")
-    .option("checkpointLocation", AppConfig.getCheckpointPath(AppConfig.Tables.rawTemperatureHumidity))
-    .start(AppConfig.getPathForTable(AppConfig.Tables.rawTemperatureHumidity))
+  // Calcular agregaciones de temperatura usando ROLLUP
+  val temperatureAggregations = dataProcessor.calculateTemperatureAggregations(enrichedSensorData)
 
-  // Agregar y mostrar promedios
-  val avgTempHumDf = dataProcessor.aggregateData(tempHumDf, "1 minute", Seq("temperature", "humidity"))
-  avgTempHumDf.writeStream
+  // Escribir los resultados de promedios de temperatura en la consola
+  val avgTempQuery = averageTemperatures
+    .writeStream
+    .outputMode("update")
+    .format("console")
+    .trigger(Trigger.ProcessingTime("10 seconds"))
+    .start()
+
+  // Escribir los resultados de agregaciones de temperatura en la consola
+  val aggTempQuery = temperatureAggregations
+    .writeStream
     .outputMode("complete")
     .format("console")
+    .trigger(Trigger.ProcessingTime("1 minute"))
+    .start()
+
+  // 4. Uso de Accumulators
+  val query = sensorDataStream
+    .writeStream
+    .foreachBatch { (batchDF: DataFrame, batchId: Long) =>
+      batchDF.foreach { row =>
+        // Lógica para detectar errores y actualizar el Accumulator
+        if (row.getAs[Double]("temperature") < -50 || row.getAs[Double]("temperature") > 50) {
+          errorCounter.add(1)
+        }
+      }
+
+      println(s"Errores acumulados hasta el batch $batchId: ${errorCounter.value}")
+    }
     .start()
 
   spark.streams.awaitAnyTermination()

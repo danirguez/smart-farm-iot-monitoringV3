@@ -3,9 +3,11 @@ package io
 import com.typesafe.config.ConfigFactory
 import org.apache.kafka.clients.producer.ProducerConfig
 import java.util.Properties
+import java.io.File
 
 object KafkaDataGeneratorConfig {
-  private val config = ConfigFactory.load()
+  private val config = ConfigFactory.parseFile(new File("src/main/resources/application.conf")).resolve()
+
   val bootstrapServers: String = config.getString("kafka.bootstrapServers")
   val co2Topic: String = config.getString("kafka.topics.co2.name")
   val temperatureHumidityTopic: String = config.getString("kafka.topics.temperature_humidity.name")

@@ -7,6 +7,8 @@ lazy val root = (project in file("."))
     name := "smart-farm-iot-monitoring"
   )
 
+enablePlugins(JmhPlugin)
+
 // Importaciones necesarias para trabajar con Spark y Kafka
 libraryDependencies ++= Seq(
   "org.apache.spark" %% "spark-sql"            % "3.5.1",
@@ -16,6 +18,14 @@ libraryDependencies ++= Seq(
   "com.typesafe" % "config" % "1.4.2",
   // ScalaTest
   "org.scalatest"   %% "scalatest"             % "3.2.18" % Test,
+  "org.apache.kafka" % "kafka-clients" % "3.7.0",
   // Spark Fast Tests
-  "com.github.mrpowers" %% "spark-fast-tests"  % "1.3.0" % Test
+  "com.github.mrpowers" %% "spark-fast-tests"  % "1.3.0" % Test,
+  "org.openjdk.jmh" % "jmh-core" % "1.37",
+  "org.openjdk.jmh" % "jmh-generator-annprocess" % "1.37"
 )
+
+// Configuración para JMH
+Test / sourceDirectory := baseDirectory.value / "src" / "test"
+
+Compile / resourceDirectory := baseDirectory.value / "src" / "main" / "resources"

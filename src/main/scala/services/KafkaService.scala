@@ -1,35 +1,37 @@
 package services
 
 import config.AppConfig
+import models.SensorReading
 import org.apache.spark.sql.{DataFrame, SparkSession}
-import org.apache.kafka.clients.admin.{AdminClient, NewTopic}
-import org.apache.kafka.common.errors.TopicExistsException
-import scala.jdk.CollectionConverters._
-import scala.util.{Try, Success, Failure}
+import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.{StringType, StructType, DoubleType, TimestampType}
 
-class KafkaService(implicit spark: SparkSession) extends Serializable {
-  @transient private lazy val adminProps = new java.util.Properties()
-  adminProps.put("bootstrap.servers", AppConfig.Kafka.bootstrapServers)
-  @transient private lazy val adminClient = AdminClient.create(adminProps)
-
-  def createTopicIfNotExists(topic: String): Unit = {
-    val newTopic = new NewTopic(topic, 1, 1.toShort)
-    Try(adminClient.createTopics(java.util.Collections.singleton(newTopic)).all().get()) match {
-      case Success(_) => println(s"Topic $topic created successfully")
-      case Failure(e: TopicExistsException) => println(s"Topic $topic already exists")
-      case Failure(e) => println(s"Error creating topic $topic: ${e.getMessage}")
-    }
-  }
+class KafkaService(implicit spark: SparkSession) {
+  import spark.implicits._
 
   def readStream(topic: String): DataFrame = {
-    createTopicIfNotExists(topic)
-
     spark.readStream
       .format("kafka")
       .option("kafka.bootstrap.servers", AppConfig.Kafka.bootstrapServers)
       .option("subscribe", topic)
       .option("startingOffsets", "earliest")
       .load()
-      .selectExpr("CAST(value AS STRING)", "CAST(timestamp AS TIMESTAMP)")
+      .select(
+        col("timestamp").as("processing_time"),
+        from_json(col("value").cast("string"), sensorSchema).alias("data")
+      )
+      .select(
+        $"processing_time",
+        $"data.sensorId",
+        $"data.temperature",
+        $"data.humidity",
+        $"data.timestamp".cast("timestamp").as("event_time")
+      )
   }
+
+  private val sensorSchema = new StructType()
+    .add("sensorId", StringType)
+    .add("temperature", DoubleType)
+    .add("humidity", DoubleType)
+    .add("timestamp", StringType)
 }

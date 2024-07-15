@@ -15,9 +15,12 @@ object KafkaDataGenerator {
 
   private def formatMessage(topic: String, sensorId: String, value: Double, timestamp: Timestamp): String = {
     topic match {
-      case "temperature_humidity" => s"$sensorId,$value,$value,$timestamp"
-      case KafkaDataGeneratorConfig.co2Topic => s"$sensorId,$value,$timestamp"
-      case "soil_moisture" => s"$sensorId,$value,$timestamp"
+      case KafkaDataGeneratorConfig.temperatureHumidityTopic =>
+        s"""{"sensorId":"$sensorId","temperature":$value,"humidity":$value,"timestamp":"$timestamp"}"""
+      case KafkaDataGeneratorConfig.co2Topic =>
+        s"""{"sensorId":"$sensorId","co2Level":$value,"timestamp":"$timestamp"}"""
+      case KafkaDataGeneratorConfig.soilMoistureTopic =>
+        s"""{"sensorId":"$sensorId","soilMoisture":$value,"timestamp":"$timestamp"}"""
       case _ => throw new IllegalArgumentException("Invalid topic")
     }
   }
