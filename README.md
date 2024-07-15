@@ -1,11 +1,22 @@
 # Proyecto de Monitoreo IoT para Agricultura
 
-Este proyecto implementa un sistema de monitoreo IoT para agricultura utilizando Apache Kafka y Apache Spark para procesar datos de sensores en tiempo real.
+Este proyecto implementa un sistema de monitoreo IoT para agricultura utilizando Apache Kafka y Apache Spark para procesar datos de sensores en tiempo real. Se han implementado nuevas funcionalidades y mejoras basadas en los requisitos del módulo 10, semana 2.
+
+## Nuevas Funcionalidades
+
+1. Manejo de zonas con JSON y Delta Lake
+2. Procesamiento de datos de sensores en streaming
+3. Deduplicación y manejo de datos tardíos
+4. Cálculo de promedios de temperatura usando Watermark y Window
+5. Agregaciones de temperatura usando ROLLUP
+6. Uso de broadcast join para enriquecer datos
+7. Implementación de contadores de errores con Accumulators
+8. Implementación de una operación con estado que calcula el valor máximo de temperatura por sensor.
 
 ## Estructura del Proyecto
 
 ```
-smart-farm-iot-monitoringV3/
+smart-farm-iot-monitoring/
 │
 ├── src/
 │   ├── main/
@@ -22,36 +33,38 @@ smart-farm-iot-monitoringV3/
 │   │   │   │   └── SensorReading.scala
 │   │   │   ├── services/
 │   │   │   │   ├── DataProcessor.scala
-│   │   │   │   └── KafkaService.scala
+│   │   │   │   ├── KafkaService.scala
+│   │   │   │   └── ZonesManager.scala
 │   │   │   ├── utils/
 │   │   │   │   └── DataValidation.scala
 │   │   │   └── MonitoringApp.scala
 │   │   └── resources/
-│   │       └── application.conf
+│   │       ├── application.conf
+│   │       └── zones.json
 │   └── test/
 │       └── scala/
-│           ├── config/
-│           │   ├── ConfigTest.scala
-│           ├── services/
-│           │   ├── DataProcessorTest.scala
-│           │   └── KafkaServiceTest.scala
-│           └── utils/
-│               └── DataValidationTest.scala
+│           └── [archivos de test]
+├── project/
+│   └── plugins.sbt
 ├── docker-compose.yml
 ├── build.sbt
 └── README.md
 ```
 
-## Descripción del Código
+## Descripción de los Componentes Principales
 
-El proyecto está escrito en Scala y utiliza Apache Kafka y Apache Spark. Aquí hay una breve descripción de los componentes principales:
-
-- `AppConfig.scala`: Configura la aplicación cargando los ajustes desde el archivo de configuración.
-- `SparkSessionWrapper.scala`: Crea y configura la sesión de Spark.
-- `KafkaDataGenerator.scala`: Genera datos simulados de sensores y los envía a Kafka.
-- `DataProcessor.scala`: Procesa los datos de los sensores, incluyendo la agregación y el cálculo de promedios.
-- `KafkaService.scala`: Maneja la comunicación con Kafka, incluyendo la creación de tópicos y la lectura de streams.
-- `MonitoringApp.scala`: La aplicación principal que orquesta todo el proceso de monitoreo.
+- `AppConfig.scala`: Gestiona la configuración global de la aplicación.
+- `SparkSessionWrapper.scala`: Configura y crea la sesión de Spark.
+- `KafkaDataGenerator.scala`: Genera y envía datos simulados de sensores a Kafka.
+- `KafkaDataGeneratorConfig.scala`: Contiene la configuración para el generador de datos.
+- `KafkaDataGeneratorMain.scala`: Punto de entrada para ejecutar el generador de datos.
+- `SensorReading.scala`: Define estructuras de datos para las lecturas de sensores.
+- `SensorData.scala`: Contiene clases de datos para los diferentes tipos de sensores.
+- `DataProcessor.scala`: Procesa datos de sensores, realiza agregaciones y enriquecimiento.
+- `KafkaService.scala`: Maneja la comunicación con Kafka y la lectura de streams.
+- `ZonesManager.scala`: Gestiona la carga y actualización de datos de zonas.
+- `DataValidation.scala`: Proporciona funciones de validación para datos de sensores.
+- `MonitoringApp.scala`: Aplicación principal que orquesta el proceso de monitoreo.
 
 ## Requisitos
 
