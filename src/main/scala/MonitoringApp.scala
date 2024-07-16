@@ -2,6 +2,7 @@ import config.{AppConfig, SparkSessionWrapper}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import services.{DataProcessor, KafkaService, ZonesManager}
 import org.apache.spark.sql.streaming.Trigger
+import org.apache.spark.sql.functions._
 
 object MonitoringApp extends App with SparkSessionWrapper {
   implicit val sparkSession: SparkSession = spark
@@ -10,7 +11,6 @@ object MonitoringApp extends App with SparkSessionWrapper {
   val kafkaService = new KafkaService()
   val dataProcessor = new DataProcessor()
   val zonesManager = new ZonesManager()
-  val errorCounter = spark.sparkContext.longAccumulator("ErrorCounter")
 
   // Cargar los datos de las zonas desde el JSON
   val zonesData = zonesManager.loadZones(AppConfig.zonesJsonPath)
@@ -43,15 +43,20 @@ object MonitoringApp extends App with SparkSessionWrapper {
     .start()
 
   // 4. Uso de Accumulators
+  val errorCounter = spark.sparkContext.longAccumulator("ErrorCounter")
+
   val query = sensorDataStream
     .writeStream
     .foreachBatch { (batchDF: DataFrame, batchId: Long) =>
-      batchDF.foreach { row =>
-        // Lógica para detectar errores y actualizar el Accumulator
-        if (row.getAs[Double]("temperature") < -50 || row.getAs[Double]("temperature") > 50) {
-          errorCounter.add(1)
-        }
-      }
+      // Filtrar sensores defectuosos
+      val defectiveDF = batchDF.filter(col("sensorId").rlike("^sensor-defective-\\d+$"))
+
+      // Contar errores en este batch
+      val errorCount = defectiveDF.count()
+      errorCounter.add(errorCount)
+
+      // Mostrar resultados
+      defectiveDF.groupBy("sensorId").count().show()
 
       println(s"Errores acumulados hasta el batch $batchId: ${errorCounter.value}")
     }

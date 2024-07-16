@@ -11,7 +11,7 @@ Este proyecto implementa un sistema de monitoreo IoT para agricultura utilizando
 5. Agregaciones de temperatura usando ROLLUP
 6. Uso de broadcast join para enriquecer datos
 7. Implementación de contadores de errores con Accumulators
-8. Implementación de una operación con estado que calcula el valor máximo de temperatura por sensor.
+8. Implementación de una operación con estado que calcula el valor máximo de temperatura por sensor. (Sin implementar)
 
 ## Estructura del Proyecto
 
