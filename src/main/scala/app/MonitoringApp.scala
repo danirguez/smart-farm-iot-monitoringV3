@@ -1,10 +1,13 @@
+package app
+
 import config.{AppConfig, SparkSessionWrapper}
 import io.{KafkaDataGeneratorConfig, KafkaDataGeneratorHelper}
 import org.apache.log4j.Logger
-import org.apache.spark.sql.{DataFrame, SparkSession}
-import services.{DataProcessor, KafkaService, ZonesManager}
-import org.apache.spark.sql.streaming.Trigger
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.streaming.Trigger
+import org.apache.spark.sql.{DataFrame, Observation, SparkSession, functions}
+import services.{DataProcessor, KafkaService, ZonesManager}
+import spark.listeners.{InvalidDataAccumulatorListener, PerformanceMetricsListener}
 
 import scala.Console.{BLUE, BOLD, RESET}
 
@@ -13,6 +16,18 @@ object MonitoringAppHelpers {
     println(BOLD + BLUE + message + RESET)
     logger.info(message)
   }
+
+  def writeQueryToConsole(query: DataFrame, mode: String, interval: String, enabled: Boolean = true): Any = {
+    if (enabled) {
+      query
+        .writeStream
+        .outputMode(mode)
+        .format("console")
+        .trigger(Trigger.ProcessingTime(interval))
+        .start()
+    }
+  }
+
 }
 
 object MonitoringApp extends App with SparkSessionWrapper {
@@ -23,7 +38,10 @@ object MonitoringApp extends App with SparkSessionWrapper {
   override val shufflePartitions = "10"
 
   implicit val sparkSession: SparkSession = spark
-  import sparkSession.implicits._
+
+  // Registramos los listeners:
+  sparkSession.streams.addListener(new InvalidDataAccumulatorListener())
+  sparkSession.streams.addListener(new PerformanceMetricsListener())
 
   implicit val log: Logger = org.apache.log4j.LogManager.getLogger("MonitoringApp")
   // Para no tener que acordarme de lanza el KafkaDataGenerator lo llamo desde aquí:
@@ -47,33 +65,26 @@ object MonitoringApp extends App with SparkSessionWrapper {
   val sensorDataStream = kafkaService.readStream(AppConfig.Kafka.temperatureHumidityTopic)
 
   // Enriquecer los datos del sensor con la información de las zonas usando broadcast join
+  MonitoringAppHelpers.printAndLog("Enriqueciendo los datos de los sensores con la información de las zonas...")
   val enrichedSensorData = dataProcessor.enrichWithZones(sensorDataStream, zonesData)
 
   // Calcular promedios de temperatura por sensor cada 10 minutos
+  MonitoringAppHelpers.printAndLog("Calculando promedios de temperatura por sensor cada 10 minutos...")
   val averageTemperatures = dataProcessor.calculateAverageTemperature(enrichedSensorData)
 
   // Calcular agregaciones de temperatura usando ROLLUP
+  MonitoringAppHelpers.printAndLog("Calculando agregaciones de temperatura usando ROLLUP...")
   val temperatureAggregations = dataProcessor.calculateTemperatureAggregations(enrichedSensorData)
 
   // Escribir los resultados de promedios de temperatura en la consola
-  val avgTempQuery = averageTemperatures
-    .writeStream
-    .outputMode("update")
-    .format("console")
-    .trigger(Trigger.ProcessingTime("10 seconds"))
-    .start()
+  private val activarConsolas = false
+  val avgTempQuery = MonitoringAppHelpers.writeQueryToConsole(averageTemperatures, "update", "10 seconds", enabled = activarConsolas)
 
   // Escribir los resultados de agregaciones de temperatura en la consola
-  val aggTempQuery = temperatureAggregations
-    .writeStream
-    .outputMode("complete")
-    .format("console")
-    .trigger(Trigger.ProcessingTime("1 minute"))
-    .start()
+  val aggTempQuery = MonitoringAppHelpers.writeQueryToConsole(temperatureAggregations, "complete", "1 minute", enabled = activarConsolas)
 
   // 4. Uso de Accumulators
   val errorCounter = spark.sparkContext.longAccumulator("ErrorCounter")
-
   val query = sensorDataStream
     .writeStream
     .foreachBatch { (batchDF: DataFrame, batchId: Long) =>
@@ -85,9 +96,12 @@ object MonitoringApp extends App with SparkSessionWrapper {
       errorCounter.add(errorCount)
 
       // Mostrar resultados
-      defectiveDF.groupBy("sensorId").count().show()
+      // Mario - Intenta no hacer acciones en el driver como count o show ya que puede ralentizar el proceso
+      // defectiveDF.groupBy("sensorId").count().show()
 
-      println(s"Errores acumulados hasta el batch $batchId: ${errorCounter.value}")
+
+      // Mario - Lo he metido con un Listemer
+      //println(s"Errores acumulados hasta el batch $batchId: ${errorCounter.value}")
     }
     .start()
 
