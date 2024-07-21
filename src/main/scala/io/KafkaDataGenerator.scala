@@ -6,10 +6,11 @@ import java.sql.Timestamp
 object KafkaDataGenerator {
   private val producer: KafkaProducer[String, String] = new KafkaProducer[String, String](KafkaDataGeneratorConfig.createProducerProperties())
 
-  def sendData(topic: String, sensorId: String, value: Double, timestamp: Timestamp): Unit = {
+  def sendData(topic: String, sensorId: String, value: Double, timestamp: Timestamp, withPrintedMessages: Boolean = true): Unit = {
     val message = formatMessage(topic, sensorId, value, timestamp)
     val record = new ProducerRecord[String, String](topic, "key", message)
-    println(s"Sending data to topic $topic")
+    if (withPrintedMessages)
+      println(s"Sending data to topic $topic")
     producer.send(record)
   }
 

@@ -6,7 +6,7 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{StringType, StructType, DoubleType, TimestampType}
 
-class KafkaService(implicit spark: SparkSession) {
+class KafkaService()(implicit spark: SparkSession) {
   import spark.implicits._
 
   def readStream(topic: String): DataFrame = {

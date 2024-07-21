@@ -6,7 +6,7 @@ import org.apache.spark.sql.types._
 import io.delta.tables._
 import java.io.File
 
-class ZonesManager(implicit spark: SparkSession) {
+class ZonesManager()(implicit spark: SparkSession) {
   import spark.implicits._
 
   def loadZones(path: String): DataFrame = {

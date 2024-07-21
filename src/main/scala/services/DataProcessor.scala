@@ -5,7 +5,7 @@ import models._
 import org.apache.spark.sql.{DataFrame, Dataset, SparkSession}
 import org.apache.spark.sql.functions._
 
-class DataProcessor(implicit spark: SparkSession) extends Serializable {
+class DataProcessor()(implicit spark: SparkSession) extends Serializable {
   import spark.implicits._
 
   @transient private lazy val sensorToZoneMap: Map[String, String] = Map(

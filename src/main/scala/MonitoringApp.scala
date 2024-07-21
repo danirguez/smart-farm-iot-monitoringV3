@@ -1,4 +1,5 @@
 import config.{AppConfig, SparkSessionWrapper}
+import io.{KafkaDataGeneratorConfig, KafkaDataGeneratorHelper}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import services.{DataProcessor, KafkaService, ZonesManager}
 import org.apache.spark.sql.streaming.Trigger
@@ -13,6 +14,11 @@ object MonitoringApp extends App with SparkSessionWrapper {
 
   implicit val sparkSession: SparkSession = spark
   import sparkSession.implicits._
+
+  // Para no tener que acordarme de lanza el KafkaDataGenerator lo llamo desde aquí:
+  val topics = KafkaDataGeneratorConfig.topics
+  // Paso false para que no imprima los mensajes en consola y así no se mezclen con los mensajes de la aplicación
+  KafkaDataGeneratorHelper.generateData(topics, withPrintedMessages = false)
 
   val kafkaService = new KafkaService()
   val dataProcessor = new DataProcessor()
