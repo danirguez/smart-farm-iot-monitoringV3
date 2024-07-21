@@ -5,7 +5,7 @@ import java.io.File
 import scala.util.Try
 
 object AppConfig {
-  private val config: Config = ConfigFactory.parseFile(new java.io.File("src/main/resources/application.conf")).resolve()
+  private val config: Config = ConfigFactory.load() // parseFile(new java.io.File("src/main/resources/application.conf")).resolve()
 
 
   object Kafka {

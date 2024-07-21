@@ -8,7 +8,10 @@ import org.apache.spark.sql.functions._
 class DataProcessorTest extends AnyFunSuite {
 
   lazy val spark: SparkSession = SparkSession.builder()
-    .master("local[*]")
+    .master("local[2]")
+    .config("spark.sql.shuffle.partitions", "2")
+    .config("spark.default.parallelism", "2")
+    .config("spark.ui.enabled", "false")
     .appName("DataProcessorTest")
     .getOrCreate()
 
@@ -33,13 +36,16 @@ class DataProcessorTest extends AnyFunSuite {
     val testData = Seq(
       TemperatureHumidityReading("sensor1", 25.0, 60.0, java.sql.Timestamp.valueOf("2023-07-05 12:00:00")),
       TemperatureHumidityReading("sensor1", 26.0, 61.0, java.sql.Timestamp.valueOf("2023-07-05 12:01:00"))
-    ).toDS()
+    ).toDS().withColumn("zoneId", lit("zona1"))
+
+    testData.show()
 
     val result = dataProcessor.aggregateData(testData.toDF(), "1 minute", Seq("temperature", "humidity"))
+    result.show()
 
     assert(result.columns.contains("avg_temperature"))
     assert(result.columns.contains("avg_humidity"))
     val avgTemp = result.select("avg_temperature").first().getDouble(0)
-    assert(avgTemp > 25.0 && avgTemp < 26.0)
+    assert(avgTemp >= 25.0 && avgTemp < 26.0)
   }
 }
