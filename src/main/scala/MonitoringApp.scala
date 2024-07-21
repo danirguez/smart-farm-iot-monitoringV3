@@ -1,9 +1,19 @@
 import config.{AppConfig, SparkSessionWrapper}
 import io.{KafkaDataGeneratorConfig, KafkaDataGeneratorHelper}
+import org.apache.log4j.Logger
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import services.{DataProcessor, KafkaService, ZonesManager}
 import org.apache.spark.sql.streaming.Trigger
 import org.apache.spark.sql.functions._
+
+import scala.Console.{BLUE, BOLD, RESET}
+
+object MonitoringAppHelpers {
+  def printAndLog(message: String)(implicit logger: org.apache.log4j.Logger): Unit = {
+    println(BOLD + BLUE + message + RESET)
+    logger.info(message)
+  }
+}
 
 object MonitoringApp extends App with SparkSessionWrapper {
   override val appName = "IoT Farm Monitoring"
@@ -15,13 +25,20 @@ object MonitoringApp extends App with SparkSessionWrapper {
   implicit val sparkSession: SparkSession = spark
   import sparkSession.implicits._
 
+  implicit val log: Logger = org.apache.log4j.LogManager.getLogger("MonitoringApp")
   // Para no tener que acordarme de lanza el KafkaDataGenerator lo llamo desde aquí:
   val topics = KafkaDataGeneratorConfig.topics
   // Paso false para que no imprima los mensajes en consola y así no se mezclen con los mensajes de la aplicación
   KafkaDataGeneratorHelper.generateData(topics, withPrintedMessages = false)
 
+  // Lanzamos la lectura de los datos de Kafka:
+  MonitoringAppHelpers.printAndLog("[KafkaService] Iniciamos el servicio para leer datos de Kafka")
   val kafkaService = new KafkaService()
+  // Lanzamos el procesamiento de los datos:
+  MonitoringAppHelpers.printAndLog("[DataProcessor] Iniciamos el procesamiento de los datos")
   val dataProcessor = new DataProcessor()
+  // Lanzamos el servicio para gestionar las zonas:
+  MonitoringAppHelpers.printAndLog("[ZonesManager] Iniciamos el servicio para gestionar las zonas")
   val zonesManager = new ZonesManager()
 
   // Cargar los datos de las zonas desde el JSON
