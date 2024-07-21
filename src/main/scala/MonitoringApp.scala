@@ -5,6 +5,12 @@ import org.apache.spark.sql.streaming.Trigger
 import org.apache.spark.sql.functions._
 
 object MonitoringApp extends App with SparkSessionWrapper {
+  override val appName = "IoT Farm Monitoring"
+  override val master = "local[*]"
+  override val useDelta = true
+  override val extraJavaOption = "-Dlog4j.configuration=file:src/main/resources/log4j2.properties"
+  override val shufflePartitions = "10"
+
   implicit val sparkSession: SparkSession = spark
   import sparkSession.implicits._
 
